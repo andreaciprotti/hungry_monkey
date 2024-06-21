@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>prova</title>
+</head>
+
+<body>
+    <style>
+        body {
+            margin: 0;
+            background: #0c4a6e;
+        }
+
+        /* Modal container */
+.modal {
+    display: block; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgb(0,0,0); /* Fallback color */
+    background-color: rgb(7 57 4 / 85%); /* Black w/ opacity */
+  }
+  
+  /* Modal content */
+  .modal-content {
+    background-color: #fefefe;
+    margin: 15% auto; /* 15% from the top and centered */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more or less, depending on screen size */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  
+    </style>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script crossorigin="anonymous" type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+
+        var timer_interval
+        var starting_time
+        var started = false;
+        var pause = true
+        var distance_x = -0.5
+        var distance_y = 1.5
+        var distance_z = 2.5
+        let isMouseDown = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        var can_start = false
+        var mute = false
+        
+        function updateCamera(mesh){
+            camera.position.x = mesh.position.x + distance_x;
+            camera.position.y = mesh.position.y + distance_y;
+            camera.position.z = mesh.position.z + distance_z;
+            //camera.lookAt(new THREE.Vector3(sphere.mesh.position.x, sphere.mesh.position.y + 1, sphere.mesh.position.z));
+            controls.target.copy(new THREE.Vector3(mesh.position.x, mesh.position.y + 1, mesh.position.z));
+        }
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(2, 4, 10);
+
+        const renderer = new THREE.WebGLRenderer({
+            alpha: true,
+            antialias: true
+        });
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.y = 3;
+        light.position.z = 0;
+        light.position.x = 3;
+
+        const targetObject = new THREE.Object3D();
+        targetObject.position.set(0, 0, 0); // Puoi cambiare questa posizione a tuo piacimento
+        scene.add(targetObject);
+        light.target = targetObject;
+        scene.add(new THREE.DirectionalLightHelper(light))
+
+        light.castShadow = true;
+
+        // Impostazioni della shadow camera
+        light.shadow.camera.left = -100;
+        light.shadow.camera.right = 100;
+        light.shadow.camera.top = 10;
+        light.shadow.camera.bottom = -10;
+
+        // Impostazioni opzionali per migliorare la qualità delle ombre
+        light.shadow.camera.near = -1;
+        light.shadow.camera.far = 10;
+        light.shadow.mapSize.width = 4096; // Risoluzione della mappa delle ombre
+        light.shadow.mapSize.height = 4096;
+
+        scene.add(light);
+
+        var listener = new THREE.AudioListener();
+        camera.add(listener);
+
+        var sound = new THREE.Audio(listener);
+        var bounce = new THREE.Audio(listener);
+        var audioLoader = new THREE.AudioLoader();
+
+        // Carica il file audio (assicurati di avere un file audio nella posizione corretta)
+        audioLoader.load('sound.mp3', function(buffer) {
+        sound.setBuffer(buffer);
+        sound.setLoop(true);
+        sound.setVolume(0.5);
+        sound.play();
+        });
+        audioLoader.load('jump-boing.mp3', function(buffer) {
+        bounce.setBuffer(buffer);
+        bounce.setVolume(150);
+        bounce.setPlaybackRate(1.1)
+        var lowpassFilter = listener.context.createBiquadFilter();
+        lowpassFilter.type = 'lowpass';
+        lowpassFilter.frequency.setValueAtTime(55, listener.context.currentTime); // Frequenza iniziale
+
+        bounce.setFilter(lowpassFilter)
+        });
+
+        const textureLoader = new THREE.TextureLoader();
+        const texture = textureLoader.load('radice.png');
+        const textureCyl = textureLoader.load('corteccia.jpg');
+        const textureGr = textureLoader.load('old-wood-tree-with-vintage-texture.jpg');
+        const textureBo = textureLoader.load('rampicante.jpg');
+        const textureMonkey = textureLoader.load('UV Monkey.png');
+
+        var contBanane = 0
+        const objLoader = new OBJLoader()
+        const fbxLoader = new FBXLoader()
+        const loader = new GLTFLoader();
+        var monkey = null
+
+        
+        const keys = {
+            left: { pressed: false },
+            right: { pressed: false },
+            up: { pressed: false },
+            down: { pressed: false },
+            space: { pressed: false }
+        };
+
+        window.addEventListener("keydown", (event) => {
+            switch (event.code) {
+                case 'ArrowLeft': keys.left.pressed = true; break;
+                case 'ArrowRight': keys.right.pressed = true; break;
+                case 'ArrowUp': keys.up.pressed = true; break;
+                case 'ArrowDown': keys.down.pressed = true; break;
+                case 'Space': keys.space.pressed = true; break;
+                case 'KeyP': 
+                    pausa()
+                    pause = true; break;
+                case 'KeyR': 
+                    riprendi()
+                    pause = false; break;
+                case 'BracketRight':
+                    distance_z *= 0.97
+                    break
+                case 'Slash':
+                    distance_z /= 0.97
+                    break
+                case 'KeyS':
+                    camera.position.z = monkey.position.z + distance_z;
+                    controls.target.copy(new THREE.Vector3(sphere.mesh.position.x, sphere.mesh.position.y + 1, monkey.position.z));
+                    break
+                case 'KeyM':
+                    if(mute){
+                        sound.setVolume(0.5)
+                        bounce.setVolume(150)
+                        mute = false
+                    }
+                    else{
+                        sound.setVolume(0)
+                        bounce.setVolume(0)
+                        mute = true
+                    }
+                    break
+            }
+        });
+        window.addEventListener("keyup", (event) => {
+            switch (event.code) {
+                case 'ArrowLeft': keys.left.pressed = false; break;
+                case 'ArrowRight': keys.right.pressed = false; break;
+                case 'ArrowUp': keys.up.pressed = false; break;
+                case 'ArrowDown': keys.down.pressed = false; break;
+                case 'Space': keys.space.pressed = false; break;
+            }
+        });
+
+        document.addEventListener('mousedown', (event) => {
+            isMouseDown = true;
+            previousMousePosition.x = event.clientX;
+            previousMousePosition.y = event.clientY;
+        });
+        
+        // Event listener per mouseup
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+        
+        // Event listener per mousemove
+        document.addEventListener('mousemove', (event) => {
+            if (isMouseDown) {
+                distance_x += event.clientX - previousMousePosition.x,
+                distance_y += event.clientY - previousMousePosition.y
+            
+                previousMousePosition.x = event.clientX;
+                previousMousePosition.y = event.clientY;
+            }
+        });
+
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        
+        //renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        //renderer.toneMappingExposure = 1.8;
+        const hdrTextureUrl = new URL('/xanderklinge_2k.hdr', import.meta.url);
+        const loaderTex = new RGBELoader();
+        loaderTex.load(hdrTextureUrl, function (texture) {
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+        //    scene.background = texture;
+            scene.environment = texture;
+        });
+        
+        var backTex = textureLoader.load('sunny-tropical-landscape.jpg')
+        scene.background = backTex;
+        //scene.environment = backTex;
+        //scene.add(new THREE.AmbientLight(0xffffff, 0.2))
+
+        class SphereScene {
+            constructor({ mesh, roughness = 1, metalness = 0, velocity = { x: 0, y: 0, z: 0 }, texture = null, dimensions }) {
+                this.mesh = mesh;
+                this.ray = dimensions.x / 2;
+                this.mesh.velocity = velocity;
+                this.gravity = -1;
+                this.mesh.material.map = texture;
+                this.mesh.material.metalness = metalness;
+                this.mesh.material.roughness = roughness;
+                this.airFriction = 0.98;
+                this.restitutionGround = 0.4;
+                this.restitutionCylinder = 0.4;
+                this.boundingSphere = new THREE.Sphere(this.mesh.position, this.ray);
+                this.isGrounded = false;
+                this.finish = false
+                this.updateSides();
+            }
+        
+            updateSides() {
+                this.left = this.mesh.position.x - this.ray;
+                this.right = this.mesh.position.x + this.ray;
+                this.bottom = this.mesh.position.y - this.ray;
+                this.top = this.mesh.position.y + this.ray;
+                this.back = this.mesh.position.z - this.ray;
+                this.front = this.mesh.position.z + this.ray;
+            }
+        
+            update(ground, obstacles) {
+                if(!this.finish){
+                    this.updateSides();
+                    this.boundingSphere.set(this.mesh.position, this.ray);
+            
+                    const quaternion = new THREE.Quaternion();
+            
+                    this.mesh.position.x += this.mesh.velocity.x;
+                    quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), (this.mesh.velocity.z / this.ray));
+                    this.mesh.quaternion.multiplyQuaternions(quaternion, this.mesh.quaternion);
+            
+                    this.mesh.position.z += this.mesh.velocity.z;
+                    quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (-this.mesh.velocity.x / this.ray));
+                    this.mesh.quaternion.multiplyQuaternions(quaternion, this.mesh.quaternion);
+            
+                    this.applyGravity(ground, obstacles);
+                    this.applyFriction();
+            
+                    obstacles.forEach((el, index) => {
+                        let phaseOffset = index * (Math.PI / 4); // Offset di fase differente per ogni ostacolo
+                        if (el.mesh.rotation.z != 0) {
+                            el.mesh.position.y = 3 + Math.sin((performance.now() * 0.002) + phaseOffset) * 2;
+                        } else if (el.mesh.name.includes("Cylinder")) {
+                            if (el.mesh.userData.id == 2) {
+                                phaseOffset = (index - 1) * (Math.PI / 4);
+                                el.mesh.position.x = 1.5 - Math.sin((performance.now() * 0.002) + phaseOffset);
+                            } else {
+                                el.mesh.position.x = -1.5 + Math.sin((performance.now() * 0.002) + phaseOffset);
+                            }
+                        } else {
+                            el.mesh.position.x = Math.sin((performance.now() * 0.002) + phaseOffset) * 1.5;
+                        }
+                        this.checkCylinderCollision(el);
+                    });
+    
+                    banans.forEach((el)=>{
+                        el.rotation.y += 0.05
+                        if(this.checkCollisionBanana(el) && !el.userData.presa){
+                            el.userData.presa = true
+                            el.visible = false
+                            contBanane ++
+                            document.getElementById("t").innerHTML = contBanane+"x"
+                        }
+                    })
+    
+                    if(monkey){
+                        if(this.checkCollisionBanana(monkey)){
+                            alert("Monkey will eat "+contBanane+" bananas")
+                            this.finish = true
+                            
+                        }
+                    }
+                }
+                else stop_time()
+            }
+        
+            applyGravity(ground, obstacles) {
+                this.mesh.velocity.y += this.gravity * (1 / 60);
+        
+                if (this.checkCollision(ground) && this.mesh.velocity.y < 0) {
+                    this.mesh.velocity.y *= this.restitutionGround;
+                    this.mesh.velocity.y = -this.mesh.velocity.y;
+                    this.mesh.position.y = ground.top + this.ray;
+                    this.isGrounded = true
+                } else {
+                    this.mesh.position.y += this.mesh.velocity.y;
+                    this.isGrounded = false
+                }
+            }
+        
+            applyFriction() {
+                this.mesh.velocity.x *= this.airFriction;
+                this.mesh.velocity.z *= this.airFriction;
+            }
+        
+            checkCollision(object) {
+                const boxObject = new THREE.Box3().setFromObject(object.mesh);
+                return this.boundingSphere.intersectsBox(boxObject);
+            }
+            checkCollisionBanana(object) {
+                const boxObject = new THREE.Box3().setFromObject(object);
+                return this.boundingSphere.intersectsBox(boxObject);
+            }
+        
+            checkCylinderCollision(cylinder) {
+                const boxCylinder = new THREE.Box3().setFromObject(cylinder.mesh);
+        
+                if (this.boundingSphere.intersectsBox(boxCylinder)) {
+                    const isVerticalCollision = this.mesh.position.y - this.ray > cylinder.top;
+        
+                    if (isVerticalCollision) {
+                        this.mesh.velocity.y = -Math.abs(this.mesh.velocity.y * this.restitutionCylinder);
+                        this.mesh.position.y = cylinder.top + this.ray;
+                    } else {
+                        const penetrationX = (this.ray + cylinder.width / 2) - Math.abs(this.mesh.position.x - cylinder.mesh.position.x);
+                        const penetrationZ = (this.ray + cylinder.depth / 2) - Math.abs(this.mesh.position.z - cylinder.mesh.position.z);
+        
+                        const pushOutDistance = 0.01; 
+        
+                        if (penetrationX < penetrationZ) {
+                            if (this.mesh.position.x > cylinder.mesh.position.x) {
+                                this.mesh.position.x += penetrationX + pushOutDistance;
+                            } else {
+                                this.mesh.position.x -= penetrationX + pushOutDistance;
+                            }
+                            this.mesh.velocity.x = -this.mesh.velocity.x;
+                        } else {
+                            if (this.mesh.position.z > cylinder.mesh.position.z) {
+                                this.mesh.position.z += penetrationZ + pushOutDistance;
+                            } else {
+                                this.mesh.position.z -= penetrationZ + pushOutDistance;
+                            }
+                            this.mesh.velocity.z = -this.mesh.velocity.z;
+                        }
+                    }
+                }
+            }
+        }
+        
+        class Box {
+            constructor({ mesh, dimensions, texture = null }) {
+                this.mesh = mesh;
+                this.width = dimensions.x;
+                this.height = dimensions.y;
+                this.depth = dimensions.z;
+                this.updateSides();
+            }
+
+            updateSides() {
+                this.right = this.mesh.position.x + this.width / 2;
+                this.left = this.mesh.position.x - this.width / 2;
+                this.bottom = this.mesh.position.y - this.height / 2;
+                this.top = this.mesh.position.y + this.height / 2;
+                this.front = this.mesh.position.z + this.depth / 2;
+                this.back = this.mesh.position.z - this.depth / 2;
+            }
+        }
+
+        class Cylinder {
+            constructor({ mesh, dimensions, texture = null }) {
+                this.mesh = mesh;
+                this.width = dimensions.x;
+                this.height = dimensions.y;
+                this.depth = dimensions.z;
+                this.updateSides();
+            }
+
+            updateSides() {
+                const box = new THREE.Box3().setFromObject(this.mesh);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+
+                this.width = size.x;
+                this.height = size.y;
+                this.depth = size.z;
+
+                this.right = this.mesh.position.x + this.width / 2;
+                this.left = this.mesh.position.x - this.width / 2;
+                this.bottom = this.mesh.position.y - this.height / 2;
+                this.top = this.mesh.position.y + this.height / 2;
+                this.front = this.mesh.position.z + this.depth / 2;
+                this.back = this.mesh.position.z - this.depth / 2;
+            }
+
+            rotateCylinder() {
+                const axis = new THREE.Vector3(0, 1, 0); // Asse di rotazione Y
+                const angle = 0.01; // Angolo di rotazione
+                const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+                this.mesh.quaternion.multiplyQuaternions(quaternion, this.mesh.quaternion);
+                this.updateSides();
+            }
+        }
+
+        let sphere = null;
+        let ground = null;
+        let obstacle = [];
+        let banans = []
+        let sphereHelper = null;
+        let cylinderHelper = null;
+        let bananaHelper = []
+        loader.load(
+            'scene.gltf',
+            function (gltf) {
+                scene.add(gltf.scene);
+                let i = 1;
+                let j = 0;
+                gltf.scene.traverse(function (node) {
+                    if (node.isMesh) {
+                        const boundingBox = new THREE.Box3().setFromObject(node);
+                        const dimensions = new THREE.Vector3();
+                        boundingBox.getSize(dimensions);
+                        if (node.name == "Sphere") {
+                            sphere = new SphereScene({
+                                mesh: node,
+                                roughness: 1,
+                                texture: texture,
+                                dimensions: dimensions
+                            });
+                            camera.position.x = sphere.mesh.position.x + distance_x;
+                            camera.position.y = sphere.mesh.position.y + distance_y;
+            
+                            sphereHelper = new THREE.BoxHelper(node, 0xffff00); // Colore giallo per il bounding box della sfera
+                            //scene.add(sphereHelper);
+
+                        } else if (node.name.includes("Box")) {
+                            if (node.name == "Box") {
+                                ground = new Box({
+                                    mesh: node,
+                                    dimensions: dimensions
+                                });
+
+                                light.position.z = node.position.z
+                                targetObject.position.copy(node.position)
+                                
+
+                                node.material.map = textureGr;
+                                node.material.color.setRGB(0.3, 0.2, 0.1);
+                            } else {
+                                obstacle.push(new Cylinder({
+                                    mesh: node,
+                                    dimensions: dimensions
+                                }));
+                                node.material.map = textureBo
+                                node.position.z = -i * 5;
+                                i++;
+                            }
+                        } else if (node.name.includes("Cylinder")) {
+                            obstacle.push(new Cylinder({
+                                mesh: node,
+                                dimensions: dimensions
+                            }));
+                            node.position.z = -i * 5;
+                            if (node.rotation.z == 0) {
+                                if (j == 0) j++;
+                                else {
+                                    i++;
+                                    j = 0;
+                                }
+                            } else i++;
+                            node.material.map = textureCyl;
+                            node.material.color.setRGB(0.3, 0.2, 0.1);
+                        }
+                        else if(node.name.includes("Banana")){
+                            node.material.color.setRGB(1, 1, 0)
+                            node.userData.presa = false
+                            if(banans.length == 0) {
+                                node.position.z = obstacle[0].mesh.position.z + 2.5
+                            }
+                            else {
+                                node.position.z = banans[banans.length-1].position.z - 5
+                            }
+                            node.position.x = Math.floor(Math.random()*5-2)
+                            node.position.y = Math.floor(Math.random()*5+1)
+                            banans.push(node)
+                            var bananaHel = new THREE.BoxHelper(node, 0xffff00);
+                            //scene.add(bananaHel)
+                            bananaHelper.push(bananaHel)
+                        }
+                        node.receiveShadow = true;
+                        node.castShadow = true;
+                    }
+                });
+
+                loader.load(
+                    'monkey.gltf',
+                    function (gltf) {
+                        scene.add(gltf.scene);
+                        console.log(gltf.scene)
+                        gltf.scene.scale.x = 0.01
+                        gltf.scene.scale.y = 0.01
+                        gltf.scene.scale.z = 0.01
+                        gltf.scene.position.y += 0.5
+                        gltf.scene.position.z = -i * 5;
+                        i++
+                        monkey = gltf.scene
+                        var monkeyHelper = new THREE.BoxHelper(gltf.scene, 0xffff00); // Colore giallo per il bounding box della sfera
+                        //scene.add(monkeyHelper);
+
+                        document.getElementById("myModal").style.display = 'block'
+                        document.getElementById("start").onclick = function(){
+                            console.log("ok")
+                            camera.position.z = monkey.position.z + distance_z;
+                            controls.target.copy(new THREE.Vector3(sphere.mesh.position.x, sphere.mesh.position.y + 1, monkey.position.z));
+                            can_start = false
+                            document.getElementById("myModal").style.display = 'none'
+                            pause = false
+                        }
+                    },
+                    undefined,
+                    (error) => {
+                        console.error(error);
+                    }
+                );
+
+                ground.mesh.geometry = new THREE.BoxGeometry(ground.width, ground.height, 5 * (i + 2))
+                ground.mesh.position.z = 2 + sphere.mesh.position.z - (5 * (i + 2)) / 2
+
+            },
+            undefined,
+            (error) => {
+                console.error(error);
+            }
+        );
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+            if(pause) return
+            if (!sphere) return;
+
+            if(!started && (sphere.mesh.velocity.x != 0 || sphere.mesh.velocity.z != 0)) {
+                start_time()
+                started = true
+            }
+
+            if (keys.left.pressed) sphere.mesh.velocity.x -= params.moveSpeed;
+            else if (keys.right.pressed) sphere.mesh.velocity.x += params.moveSpeed;
+
+            if (keys.down.pressed) sphere.mesh.velocity.z += params.moveSpeed;
+            else if (keys.up.pressed) sphere.mesh.velocity.z -= params.moveSpeed;
+
+            if (keys.space.pressed && sphere.isGrounded ) {
+                sphere.mesh.velocity.y = params.jumpStrength;
+                bounce.play();
+            }
+
+            sphere.update(ground, obstacle);
+
+            if(sphereHelper)
+                sphereHelper.update()
+            bananaHelper.forEach((el)=>{
+                el.update()
+            })
+            // Aggiorna la posizione della camera per seguire la sfera
+            if(can_start)
+                updateCamera(sphere.mesh)
+            else{
+                if(camera.position.z<(sphere.mesh.position.z)){
+                    camera.position.z += (1-(sphere.mesh.position.z - camera.position.z)/(sphere.mesh.position.z - monkey.position.z))
+                    controls.target.copy(new THREE.Vector3(camera.position.x - distance_x, camera.position.y - distance_y + 1, camera.position.z - distance_z));
+                }
+                else if(camera.position.z<(sphere.mesh.position.z + distance_z)){
+                    camera.position.z += 0.05
+                    controls.target.copy(new THREE.Vector3(camera.position.x - distance_x, camera.position.y - distance_y + 1, camera.position.z - distance_z));
+                }
+                else
+                    can_start = true
+            }
+
+    // Aggiornare i controlli
+    controls.update();
+        }
+
+        animate();
+
+        // GUI Controls
+        const gui = new dat.GUI();
+
+        const params = {
+            textureEnabled: true,
+            shadowsEnabled: true,
+            moveSpeed: 0.01,
+            jumpStrength: 0.4,
+            restitutionGround: 0.4,
+            restitutionCylinders: 0.4,
+            airFriction: 0.98,
+            gravity: -1,
+            roughness: 1,
+            metalness: 0,
+            toggleTexture: function () {
+                sphere.mesh.material.map = params.textureEnabled ? texture : null;
+                sphere.mesh.material.needsUpdate = true;  // Ensure the material updates
+            },
+            toggleShadows: function () {
+                light.castShadow = params.shadowsEnabled;
+            }
+        };
+
+        gui.add(params, 'textureEnabled').name('Enable Texture').onChange(params.toggleTexture);
+        gui.add(params, 'shadowsEnabled').name('Enable Shadows').onChange(params.toggleShadows);
+        gui.add(params, 'moveSpeed', 0.01, 0.1).name('Move Speed');
+        gui.add(params, 'jumpStrength', 0.1, 1).name('Jump Strength');
+        gui.add(params, 'restitutionGround', 0, 1).name('Restitution Ground').onChange(value => {
+            sphere.restitutionGround = value;
+        });
+        gui.add(params, 'restitutionCylinders', 0, 1).name('Restitution Cylinders').onChange(value => {
+            sphere.restitutionCylinder = value;
+        });
+        gui.add(params, 'airFriction', 0.9, 1).name('Air Friction').onChange(value => {
+            sphere.airFriction = value;
+        });
+        gui.add(params, 'gravity', -10, 0).name('Gravity').onChange(value => {
+            sphere.gravity = value;
+        });
+        gui.add(params, 'roughness', 0, 1).name('Roughness').onChange(value => {
+            sphere.mesh.material.roughness = value;
+        });
+        gui.add(params, 'metalness', 0, 1).name('Metalness').onChange(value => {
+            sphere.mesh.material.metalness = value;
+        });
+
+
+        //FUNZIONE PER INTERROMPERE IL TIMER
+        function stop_time(){
+            clearInterval(timer_interval);
+        }
+
+        //FUNZIONE PER FAR PARTIRE IL TIMER
+        function start_time(){
+            starting_time = Date.now();
+            timer_interval = setInterval(updateTimer, 10);
+        }
+
+        //FUNZIONE PER AGGIORNARE IL TIMER
+        function updateTimer(){
+            var elapsed_time = Date.now() - starting_time;
+            var minutes = Math.floor(elapsed_time / 60000);
+            var seconds = Math.floor((elapsed_time % 60000) / 1000);
+            var milliseconds = elapsed_time % 1000;
+            if(milliseconds>10){
+                document.getElementById('timer').innerHTML = ('0' + minutes).slice(-2) + ':' + ('0' + seconds).slice(-2) + ':' + (""+milliseconds).slice(0,2);
+            }
+            else{
+                document.getElementById('timer').innerHTML = ('0' + minutes).slice(-2) + ':' + ('0' + seconds).slice(-2) + ':' + ("0"+milliseconds).slice(0,2);
+            }
+        }
+        function pausa(){
+            if(started){
+                stop_time();
+                document.getElementById("pause").style.display = "flex";
+            }
+        }
+        
+        //FUNZIONE CHE PERMETTE DI RIPRENDERE IL GIOCO
+        function riprendi(){
+            document.getElementById("pause").style.display = "none";
+            var tempo_pausa = document.getElementById("timer").innerHTML;
+            var pausa_milliseconds = parseInt(tempo_pausa.split(":")[0]) * 60000 +
+                                      parseInt(tempo_pausa.split(":")[1]) * 1000 +
+                                      parseInt(tempo_pausa.split(":")[2]);
+            starting_time = Date.now() - pausa_milliseconds;
+            timer_interval = setInterval(updateTimer, 10);
+        }
+        
+        //FUNZIONE CHE AZZERA IL TABELLONE E TUTTI I DATI RELATIVI ALLA PARTITA PRECEDENTE
+        function reset(){
+            started=false
+            stop_time();
+            document.getElementById("timer").innerHTML="00:00:00";
+            document.getElementById("nuovapartita").disabled=false;
+            var table = document.getElementById("griglia-table");
+            while(table.rows.length!=0){
+                table.rows[0].remove();
+            }
+        }
+
+    </script>
+    <div style="position: absolute; display:flex; align-items: center; margin-left: 100px;">
+        <p style="font-size: 63px; color: #d8d844; font-family: cursive;" id="t">0x </p>
+        <img style="width: 70px;" src="bananas.png">
+    </div>
+    <div id="timerdiv" style="position: absolute; margin-top: 350px;">
+        <p style="font-size: 63px; color: #ffffff; font-family: cursive;" id="timer">00:00:00</p>
+    </div>
+    <div id="pause" style="position: absolute; display: none; flex-direction: column; align-items: center; margin-left: 22%; margin-top: 2%; font-size: 130px;">
+        <div style="position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.5); /* Nero con opacità del 50% */
+        pointer-events: none; /* Assicura che l'overlay non impedisca interazioni con gli elementi sotto di esso */
+        z-index: 1000;"></div>
+        <label style="z-index: 1001;">PAUSE</label>
+        <label style="white-space: nowrap; z-index: 1001;">PESS 'R'</label>
+        <label style="white-space: nowrap; z-index: 1001;">TO RESUME
+        </label>
+    </div>
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+          <h2> THE MONKEY IS HUNGRY</h2>
+          <p>Bring as many bananas as you can to the monkey</p>
+          <button id="start" >Start</button>
+        </div>
+      </div>
+</body>
+
+</html>
